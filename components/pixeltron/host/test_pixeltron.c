@@ -110,15 +110,15 @@ static void test_brightness(void) {
 static void test_codeword(void) {
   const uint8_t mac[6] = {0x24, 0x6f, 0x28, 0x12, 0x34, 0x56};
   const uint8_t other[6] = {0x24, 0x6f, 0x28, 0x12, 0x34, 0x57};
-  char word[16], word2[16], url[32];
+  char word[16], word2[16], url[PXT_SETUP_URL_MAX];
   pxt_code_word(mac, word, sizeof(word));
   pxt_code_word(mac, word2, sizeof(word2));
   CHECK(strcmp(word, word2) == 0);  // stable for one device
   CHECK(strchr(word, '-') != NULL && strlen(word) <= 7);
   pxt_setup_url(mac, url, sizeof(url));
   CHECK(strncmp(url, PXT_SETUP_URL_PREFIX, strlen(PXT_SETUP_URL_PREFIX)) == 0);
-  CHECK(strlen(url) <= 25);  // must fit a version 1 alphanumeric QR code
-  char url2[32];
+  CHECK(strlen(url) <= 47);  // must fit a version 2 alphanumeric QR code
+  char url2[PXT_SETUP_URL_MAX];
   pxt_setup_url(other, url2, sizeof(url2));
   CHECK(strcmp(url, url2) != 0);
   printf("example: %s  %s\n", word, url);
@@ -127,12 +127,17 @@ static void test_codeword(void) {
 static void test_screens(void) {
   static pxt_fb_t fb;
   const uint8_t mac[6] = {0x24, 0x6f, 0x28, 0x12, 0x34, 0x56};
-  char word[16], url[32];
+  char word[16], url[PXT_SETUP_URL_MAX];
   pxt_code_word(mac, word, sizeof(word));
   pxt_setup_url(mac, url, sizeof(url));
   CHECK(pxt_screen_setup(&fb, url, word));
-  // Too long for a version 1 code: refused rather than drawn wrong.
-  CHECK(!pxt_screen_setup(&fb, "HTTPS://PIXELTRON.EXAMPLE/SETUP/ABCDEF", word));
+  // A version 2 code with a 3-module quiet zone fills rows 0-30: quiet zone
+  // light at the top-left corner, finder pattern dark 3 modules in.
+  CHECK(fb.px[0][1][0] == 170 && fb.px[30][31][0] == 170);
+  CHECK(fb.px[3][4][0] == 0);
+  // Too long for a version 2 code: refused rather than drawn wrong.
+  CHECK(!pxt_screen_setup(
+      &fb, "HTTPS://TENTHOUSANDPIXELS.COM/SETUP/ABCDEFGHIJKLMNOP", word));
   // Text drawing never writes outside the framebuffer.
   pxt_fb_clear(&fb);
   pxt_fb_text(&fb, 60, 30, "OVERFLOW", (pxt_rgb_t){255, 255, 255},
