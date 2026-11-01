@@ -38,7 +38,8 @@ int pxt_fb_text(pxt_fb_t* fb, int x, int y, const char* text, pxt_rgb_t c,
                 pxt_font_t font, int scale);
 int pxt_fb_text_width(const char* text, pxt_font_t font, int scale);
 
-// Status codes shown on the panel, matching the app's help articles.
+// Status codes shown on the panel, matching the app's status cards and the
+// help articles at tenthousandpixels.com/e/<code>.
 typedef enum {
   PXT_STATUS_NO_WIFI = 1,     // E1: saved network not visible / auth fails
   PXT_STATUS_NO_INTERNET,     // E2: Wi-Fi up, internet unreachable
@@ -49,9 +50,9 @@ typedef enum {
 
 void pxt_screen_status(pxt_fb_t* fb, pxt_status_t status);
 
-// Setup screen: QR code of `url` (upper case, <= 25 characters so it fits a
-// version 1 code) beside the code word, e.g. "FOX-42". Returns false if the
-// URL doesn't fit.
+// Setup screen: QR code of `url` (upper case, <= 47 characters so it fits a
+// version 2 code in 32 rows) beside the code word, e.g. "FOX-42". Returns
+// false if the URL doesn't fit.
 bool pxt_screen_setup(pxt_fb_t* fb, const char* url, const char* code_word);
 
 void pxt_screen_updating(pxt_fb_t* fb, int percent);
