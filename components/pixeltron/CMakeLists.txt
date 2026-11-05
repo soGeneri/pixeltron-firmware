@@ -3,6 +3,7 @@
 # files also build for the host (host/Makefile) for tests and the simulator.
 idf_component_register(
     SRCS "src/gesture.c"
+         "src/proto.c"
          "src/brightness.c"
          "src/fb.c"
          "src/screens.c"

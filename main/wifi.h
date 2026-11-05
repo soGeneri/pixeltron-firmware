@@ -78,6 +78,18 @@ void wifi_health_check(void);
  */
 void wifi_apply_power_save(void);
 
+/**
+ * @brief Join a network now (setup portal), without saving it to NVS
+ *
+ * Resets the reconnect counters so a device that had given up tries again.
+ */
+esp_err_t wifi_connect_to(const char *ssid, const char *password);
+
+/**
+ * @brief Reason code (wifi_err_reason_t) of the last STA disconnect, 0 if none
+ */
+uint8_t wifi_last_disconnect_reason(void);
+
 #ifdef __cplusplus
 }
 #endif

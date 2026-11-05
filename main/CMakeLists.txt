@@ -26,6 +26,10 @@ set(SRCS "main.c"
          "syslog.c"
          "sntp.c")
 
+if(CONFIG_PIXELTRON)
+    list(APPEND SRCS "pixeltron.c")
+endif()
+
 if(CONFIG_BOARD_TIDBYT_GEN2)
     list(APPEND SRCS "touch_control.c" "beep.c")
 endif()

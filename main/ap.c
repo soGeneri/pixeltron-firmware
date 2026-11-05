@@ -20,6 +20,22 @@
 
 #define TAG "AP"
 
+// Where the setup portal answers. Pixeltron uses the address the app expects.
+#if CONFIG_PIXELTRON
+#include "pixeltron.h"
+#define AP_IP_A PXT_AP_IP_A
+#define AP_IP_B PXT_AP_IP_B
+#define AP_IP_C PXT_AP_IP_C
+#define AP_IP_D PXT_AP_IP_D
+#define AP_IP_STR PXT_AP_IP_STR
+#else
+#define AP_IP_A 10
+#define AP_IP_B 10
+#define AP_IP_C 0
+#define AP_IP_D 1
+#define AP_IP_STR "10.10.0.1"
+#endif
+
 // Default AP configuration
 #define DEFAULT_AP_SSID "TRON-CONFIG"
 #define DEFAULT_AP_PASSWORD ""
@@ -305,8 +321,9 @@ static void dns_server_task(void *pvParameters) {
 
     uint16_t num_questions = ntohs(header->qdcount);
     if (num_questions > 0 && response_len + 16 < DNS_MAX_LEN) {
-      uint8_t answer[] = {0xC0, 0x0C, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
-                          0x00, 0x3C, 0x00, 0x04, 10,   10,   0,    1};
+      uint8_t answer[] = {0xC0,    0x0C,    0x00,    0x01,   0x00, 0x01,
+                          0x00,    0x00,    0x00,    0x3C,   0x00, 0x04,
+                          AP_IP_A, AP_IP_B, AP_IP_C, AP_IP_D};
 
       memcpy(tx_buffer + response_len, answer, sizeof(answer));
       response_len += sizeof(answer);
@@ -351,8 +368,10 @@ esp_err_t ap_start(void) {
   config.send_wait_timeout = 10;
   config.uri_match_fn = httpd_uri_match_wildcard;
   config.lru_purge_enable = true;
+  // 7 portal pages plus the 5 Pixeltron /api handlers; the default is 8.
+  config.max_uri_handlers = 16;
 
-  ESP_LOGI(TAG, "Starting web server on 10.10.0.1:%d", config.server_port);
+  ESP_LOGI(TAG, "Starting web server on " AP_IP_STR ":%d", config.server_port);
 
   if (httpd_start(&s_server, &config) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to start web server");
@@ -394,6 +413,11 @@ esp_err_t ap_start(void) {
                           .handler = captive_portal_handler,
                           .user_ctx = NULL};
   httpd_register_uri_handler(s_server, &ncsi_uri);
+
+#if CONFIG_PIXELTRON
+  // Before the wildcard, which would otherwise answer /api/* too.
+  pxt_portal_register(s_server);
+#endif
 
   httpd_uri_t wildcard_uri = {.uri = "/*",
                               .method = HTTP_GET,
@@ -879,8 +903,8 @@ static esp_err_t captive_portal_handler(httpd_req_t *req) {
     }
   }
 
-  if (host_buf != NULL && (strcmp(host_buf, "10.10.0.1") == 0 ||
-                           strstr(host_buf, "10.10.0.1") != NULL)) {
+  if (host_buf != NULL && (strcmp(host_buf, AP_IP_STR) == 0 ||
+                           strstr(host_buf, AP_IP_STR) != NULL)) {
     serve_directly = true;
   }
 
@@ -894,7 +918,7 @@ static esp_err_t captive_portal_handler(httpd_req_t *req) {
   }
 
   httpd_resp_set_status(req, "302 Found");
-  httpd_resp_set_hdr(req, "Location", "http://10.10.0.1/");
+  httpd_resp_set_hdr(req, "Location", "http://" AP_IP_STR "/");
   httpd_resp_send(req, NULL, 0);
 
   return ESP_OK;
@@ -903,10 +927,10 @@ static esp_err_t captive_portal_handler(httpd_req_t *req) {
 void ap_init_netif(void) {
   esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
 
-  // Configure AP IP address to 10.10.0.1
+  // Configure the AP IP address (AP_IP_STR)
   esp_netif_ip_info_t ip_info;
-  IP4_ADDR(&ip_info.ip, 10, 10, 0, 1);
-  IP4_ADDR(&ip_info.gw, 10, 10, 0, 1);
+  IP4_ADDR(&ip_info.ip, AP_IP_A, AP_IP_B, AP_IP_C, AP_IP_D);
+  IP4_ADDR(&ip_info.gw, AP_IP_A, AP_IP_B, AP_IP_C, AP_IP_D);
   IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
 
   // Stop DHCP server before changing IP
@@ -917,7 +941,7 @@ void ap_init_netif(void) {
   if (ap_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to set AP IP info: %s", esp_err_to_name(ap_err));
   } else {
-    ESP_LOGI(TAG, "AP IP address set to 10.10.0.1");
+    ESP_LOGI(TAG, "AP IP address set to " AP_IP_STR);
   }
 
   // Start DHCP server with new configuration
@@ -940,8 +964,11 @@ void ap_configure(void) {
   ap_config.ap.max_connection = 4;
   ap_config.ap.authmode = WIFI_AUTH_OPEN;
   ap_config.ap.beacon_interval = 100;
+#if CONFIG_PIXELTRON
+  pxt_ap_config(&ap_config);  // Pixeltron-<CODEWORD>, WPA2 with the setup code
+#endif
 
-  ESP_LOGI(TAG, "Setting AP SSID: %s on channel %d", DEFAULT_AP_SSID,
+  ESP_LOGI(TAG, "Setting AP SSID: %s on channel %d", (char *)ap_config.ap.ssid,
            random_channel);
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
 }

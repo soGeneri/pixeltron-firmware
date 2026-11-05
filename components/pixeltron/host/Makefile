@@ -6,7 +6,7 @@
 
 ROOT := ..
 SRCS := $(ROOT)/src/gesture.c $(ROOT)/src/brightness.c $(ROOT)/src/fb.c \
-        $(ROOT)/src/screens.c $(ROOT)/src/codeword.c \
+        $(ROOT)/src/screens.c $(ROOT)/src/codeword.c $(ROOT)/src/proto.c \
         $(ROOT)/third_party/qrcodegen/qrcodegen.c
 CFLAGS := -std=c11 -Wall -Wextra -O2 -I$(ROOT)/include -I$(ROOT)/third_party/qrcodegen
 BUILD := build

@@ -27,6 +27,9 @@
 #include "touch_control.h"
 #endif
 #include "version.h"
+#if CONFIG_PIXELTRON
+#include "pixeltron.h"
+#endif
 #include "wifi.h"
 
 #if CONFIG_BUTTON_PIN >= 0
@@ -205,6 +208,9 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base,
     case WEBSOCKET_EVENT_CONNECTED:
       ESP_LOGI(TAG, "WEBSOCKET_EVENT_CONNECTED");
       xEventGroupSetBits(s_ws_event_group, WS_CONNECTED_BIT);
+#if CONFIG_PIXELTRON
+      pxt_ws_handshake_status(101);  // accepted: still linked
+#endif
       break;
     case WEBSOCKET_EVENT_DISCONNECTED:
       xEventGroupClearBits(s_ws_event_group, WS_CONNECTED_BIT);
@@ -260,6 +266,9 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base,
                 if (brightness_value > DISPLAY_MAX_BRIGHTNESS)
                   brightness_value = DISPLAY_MAX_BRIGHTNESS;
                 display_set_brightness((uint8_t)brightness_value);
+#if CONFIG_PIXELTRON
+                pxt_brightness_from_server_level(brightness_value);
+#endif
                 ESP_LOGI(TAG, "Updated brightness to %d", brightness_value);
 #ifdef CONFIG_BOARD_TIDBYT_GEN2
                 // Sync touch control state - server brightness command means
@@ -577,6 +586,13 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base,
       break;
     case WEBSOCKET_EVENT_ERROR:
       ESP_LOGE(TAG, "WEBSOCKET_EVENT_ERROR");
+#if CONFIG_PIXELTRON
+      // 401/403/404 on the upgrade: the server no longer knows this device.
+      if (data) {
+        pxt_ws_handshake_status(
+            data->error_handle.esp_ws_handshake_status_code);
+      }
+#endif
       // Check if we have an incomplete WebP buffer
       if (webp != NULL) {
         ESP_LOGW(TAG,
@@ -728,7 +744,15 @@ void app_main(void) {
     }
   }
 
-  if (nvs_get_ap_mode()) {
+#if CONFIG_PIXELTRON
+  // Not set up (new, reset, or released by its owner): the QR setup screen,
+  // whether or not a Wi-Fi network is remembered.
+  if (nvs_get_ap_mode() && (!pxt_is_set_up() || button_boot)) {
+    ESP_LOGW(TAG, "Pixeltron not set up - showing the setup screen");
+    pxt_show_setup_screen();
+  } else
+#endif
+      if (nvs_get_ap_mode()) {
     if (button_boot || !sta_connected) {
       ESP_LOGW(TAG, "WiFi didn't connect or Boot Button Pressed");
       // Load up the config webp so that we don't just loop the boot screen over
@@ -789,7 +813,12 @@ void app_main(void) {
 
   // When AP mode is enabled, auto-shutdown the AP after a short delay
   if (nvs_get_ap_mode()) {
-    ap_start_shutdown_timer();
+#if CONFIG_PIXELTRON
+    // During setup the app is still on the hotspot; it stays up until the app
+    // says /api/done (which restarts the device).
+    if (pxt_is_set_up())
+#endif
+      ap_start_shutdown_timer();
   }
 
   while (true) {
@@ -855,6 +884,11 @@ void app_main(void) {
 
     // Set the websocket handle in gfx module for bidirectional communication
     gfx_set_websocket_handle(ws_handle);
+
+#if CONFIG_PIXELTRON
+    gfx_start();  // the setup screen may have paused the player
+    pxt_input_start(ws_handle);
+#endif
 
     // Create event group for WebSocket connection
     s_ws_event_group = xEventGroupCreate();

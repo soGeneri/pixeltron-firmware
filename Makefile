@@ -3,7 +3,7 @@ PROJECT_NAME := firmware
 # Fix for git safe.bareRepository=explicit in some environments
 export GIT_CONFIG_COUNT=0
 
-.PHONY: all clean fullclean flash monitor menuconfig help tidbyt-gen1 tidbyt-gen1_swap tidbyt-gen2 tidbyt-gen1-patched tidbyt-gen1_swap-patched tidbyt-gen2-patched tronbyt-s3 tronbyt-s3-wide pixoticker matrixportal-s3 matrixportal-s3-square matrixportal-s3-wide matrixportal-s3-waveshare waveshare-s3
+.PHONY: all clean fullclean flash monitor menuconfig help pixeltron-s3 pixeltron-gen1 tidbyt-gen1 tidbyt-gen1_swap tidbyt-gen2 tidbyt-gen1-patched tidbyt-gen1_swap-patched tidbyt-gen2-patched tronbyt-s3 tronbyt-s3-wide pixoticker matrixportal-s3 matrixportal-s3-square matrixportal-s3-wide matrixportal-s3-waveshare waveshare-s3
 
 help:
 	@echo "Tronbyt Firmware Build System"
@@ -28,6 +28,8 @@ help:
 	@echo "  matrixportal-s3-wide     Build for MatrixPortal S3 (128x64 panel)"
 	@echo "  matrixportal-s3-waveshare Build for MatrixPortal S3 (Waveshare)"
 	@echo "  waveshare-s3             Build for Waveshare ESP32-S3-RGB-Matrix"
+	@echo "  pixeltron-s3             Tronbyt S3 with Pixeltron setup and knob"
+	@echo "  pixeltron-gen1           Tidbyt Gen 1 with Pixeltron setup and knob"
 	@echo ""
 	@echo "Patched Variants (apply HUB75 I2S divider fix for affected panels):"
 	@echo "  tidbyt-gen1-patched       Build for Tidbyt Gen 1 with divider patch"
@@ -91,6 +93,12 @@ tidbyt-gen2-patched:
 
 tronbyt-s3:
 	$(call build_device,esp32s3,sdkconfig.defaults.tronbyt-s3)
+
+pixeltron-s3:
+	$(call build_device,esp32s3,sdkconfig.defaults.tronbyt-s3,sdkconfig.defaults.pixeltron)
+
+pixeltron-gen1:
+	$(call build_device,esp32,sdkconfig.defaults.tidbyt-gen1,sdkconfig.defaults.pixeltron)
 
 tronbyt-s3-wide:
 	$(call build_device,esp32s3,sdkconfig.defaults.tronbyt-s3-wide)
