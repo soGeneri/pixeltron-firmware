@@ -5,6 +5,7 @@
 #include "pxt_brightness.h"
 #include "pxt_codeword.h"
 #include "pxt_gesture.h"
+#include "pxt_proto.h"
 #include "pxt_screens.h"
 
 static int failures = 0;
@@ -121,7 +122,83 @@ static void test_codeword(void) {
   char url2[PXT_SETUP_URL_MAX];
   pxt_setup_url(other, url2, sizeof(url2));
   CHECK(strcmp(url, url2) != 0);
-  printf("example: %s  %s\n", word, url);
+
+  // The setup code is the hotspot's WPA2 password, which needs >= 8.
+  char code[16];
+  pxt_setup_code(mac, code, sizeof(code));
+  CHECK(strlen(code) == PXT_SETUP_CODE_LEN && strlen(code) >= 8);
+  CHECK(strpbrk(code, "01IO") == NULL);
+
+  char ssid[24], qr[64];
+  pxt_hotspot_ssid(mac, ssid, sizeof(ssid));
+  CHECK(strncmp(ssid, PXT_HOTSPOT_PREFIX, strlen(PXT_HOTSPOT_PREFIX)) == 0);
+  CHECK(strchr(ssid + strlen(PXT_HOTSPOT_PREFIX), '-') == NULL);
+  pxt_wifi_qr(mac, qr, sizeof(qr));
+  char want[64];
+  snprintf(want, sizeof(want), "WIFI:T:WPA;S:%s;P:%s;;", ssid, code);
+  CHECK(strcmp(qr, want) == 0);
+  printf("example: %s  %s  %s\n", word, url, qr);
+
+  // Same vectors as pixeltron-server codeword_test.go and the app's
+  // device_sim_test.dart.
+  const struct {
+    uint8_t mac[6];
+    const char *word, *code;
+  } vectors[] = {
+      {{0, 0, 0, 0, 0, 0}, "CAT-69", "DGY3XNLG"},
+      {{0x24, 0x0a, 0xc4, 0x12, 0x34, 0x56}, "GNU-62", "KPFFSUEK"},
+      {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, "CROW-81", "X6MX4T6N"},
+  };
+  for (size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++) {
+    pxt_code_word(vectors[i].mac, word, sizeof(word));
+    pxt_setup_code(vectors[i].mac, code, sizeof(code));
+    if (strcmp(word, vectors[i].word) || strcmp(code, vectors[i].code)) {
+      printf("vector %zu: got %s %s, want %s %s\n", i, word, code,
+             vectors[i].word, vectors[i].code);
+      CHECK(false);
+    }
+  }
+}
+
+static void test_proto(void) {
+  pxt_proto_t p;
+  pxt_proto_init(&p);
+  char m[64];
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_PRESS, m, sizeof(m)) &&
+        strcmp(m, "{\"button\":\"next\"}") == 0);
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_DOUBLE_PRESS, m, sizeof(m)) &&
+        strcmp(m, "{\"button\":\"previous\"}") == 0);
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_HOLD, m, sizeof(m)) &&
+        strcmp(m, "{\"button\":\"back\"}") == 0);
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_NONE, m, sizeof(m)) == 0);
+
+  // Countdown: one message per new second held, nothing before it starts.
+  CHECK(pxt_proto_countdown(&p, -1, m, sizeof(m)) == 0);
+  CHECK(pxt_proto_countdown(&p, 7, m, sizeof(m)) &&
+        strcmp(m, "{\"hold\":3}") == 0);
+  CHECK(pxt_proto_countdown(&p, 7, m, sizeof(m)) == 0);
+  CHECK(pxt_proto_countdown(&p, 6, m, sizeof(m)) &&
+        strcmp(m, "{\"hold\":4}") == 0);
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_RESET_CANCELLED, m, sizeof(m)) &&
+        strcmp(m, "{\"hold\":0}") == 0);
+  CHECK(pxt_proto_countdown(&p, 7, m, sizeof(m)) &&
+        strcmp(m, "{\"hold\":3}") == 0);
+  CHECK(pxt_proto_gesture(&p, PXT_GESTURE_RESET, m, sizeof(m)) &&
+        strcmp(m, "{\"hold\":10}") == 0);
+
+  CHECK(pxt_proto_brightness(140, m, sizeof(m)) &&
+        strcmp(m, "{\"brightness\":100}") == 0);
+  CHECK(pxt_proto_ota(40, false, NULL, m, sizeof(m)) &&
+        strcmp(m, "{\"ota\":{\"progress\":0.40}}") == 0);
+  CHECK(pxt_proto_ota(100, false, NULL, m, sizeof(m)) &&
+        strcmp(m, "{\"ota\":{\"progress\":1.00}}") == 0);
+  CHECK(pxt_proto_ota(-1, true, NULL, m, sizeof(m)) &&
+        strcmp(m, "{\"ota\":{\"done\":true}}") == 0);
+  CHECK(pxt_proto_ota(-1, false, "bad \"image\"", m, sizeof(m)) &&
+        strcmp(m, "{\"ota\":{\"error\":\"bad image\"}}") == 0);
+  CHECK(pxt_proto_ota(-1, false, NULL, m, sizeof(m)) == 0);
+  // Too small a buffer writes nothing rather than half a message.
+  CHECK(pxt_proto_brightness(50, m, 4) == 0);
 }
 
 static void test_screens(void) {
@@ -131,13 +208,24 @@ static void test_screens(void) {
   pxt_code_word(mac, word, sizeof(word));
   pxt_setup_url(mac, url, sizeof(url));
   CHECK(pxt_screen_setup(&fb, url, word));
-  // A version 2 code with a 3-module quiet zone fills rows 0-30: quiet zone
-  // light at the top-left corner, finder pattern dark 3 modules in.
+  // The setup URL (40 characters) is a version 2 code with a 3-module quiet
+  // zone filling rows 0-30: quiet zone light at the top-left corner, finder
+  // pattern dark 3 modules in.
+  CHECK(strlen(url) == strlen(PXT_SETUP_URL_PREFIX) + PXT_SETUP_CODE_LEN);
   CHECK(fb.px[0][1][0] == 170 && fb.px[30][31][0] == 170);
   CHECK(fb.px[3][4][0] == 0);
-  // Too long for a version 2 code: refused rather than drawn wrong.
+  // The Wi-Fi payload the panel actually shows fits, for the longest SSID.
+  char qr[64];
+  pxt_wifi_qr(mac, qr, sizeof(qr));
+  CHECK(pxt_screen_setup(&fb, qr, word));
+  CHECK(pxt_screen_setup(&fb, "WIFI:T:WPA;S:Pixeltron-BEAR99;P:ABCDEFGH;;",
+                         "BEAR-99"));
+  // Over 53 bytes (lower case forces byte mode): too long for version 3,
+  // so refused rather than drawn wrong.
   CHECK(!pxt_screen_setup(
-      &fb, "HTTPS://TENTHOUSANDPIXELS.COM/SETUP/ABCDEFGHIJKLMNOP", word));
+      &fb,
+      "https://pixeltron.example/setup/abcdef/a-much-longer-path-than-fits",
+      word));
   // Text drawing never writes outside the framebuffer.
   pxt_fb_clear(&fb);
   pxt_fb_text(&fb, 60, 30, "OVERFLOW", (pxt_rgb_t){255, 255, 255},
@@ -154,6 +242,7 @@ int main(void) {
   test_clock_wrap();
   test_brightness();
   test_codeword();
+  test_proto();
   test_screens();
   if (failures) {
     printf("%d check(s) failed\n", failures);

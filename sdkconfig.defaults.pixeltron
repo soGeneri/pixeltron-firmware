@@ -1,0 +1,9 @@
+# Pixeltron overlay: layer on a board's defaults, e.g.
+#   make pixeltron-s3   (sdkconfig.defaults + .tronbyt-s3 + this file)
+# Setup with the Pixels app (Pixeltron-<CODEWORD> hotspot, /api portal,
+# register/claim), knob input and update reports. See main/Kconfig.projbuild.
+CONFIG_PIXELTRON=y
+CONFIG_PXT_SERVER_URL="https://pixeltron.cloud"
+# Knob encoder pins for the Pixeltron board; -1 until the hardware is fixed.
+CONFIG_PXT_ENCODER_A_PIN=-1
+CONFIG_PXT_ENCODER_B_PIN=-1

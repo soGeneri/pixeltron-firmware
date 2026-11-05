@@ -50,6 +50,9 @@ static bool s_connection_given_up = false;
 // Counter for tracking consecutive WiFi disconnections
 static int s_wifi_disconnect_counter = 0;
 
+// Why the STA last disconnected (wifi_err_reason_t), for the setup portal.
+static volatile uint8_t s_last_disconnect_reason = 0;
+
 // Function prototypes
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data);
@@ -307,6 +310,10 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         }
         break;
       case WIFI_EVENT_STA_DISCONNECTED:
+        if (event_data) {
+          s_last_disconnect_reason =
+              ((wifi_event_sta_disconnected_t*)event_data)->reason;
+        }
         // Increment reconnection counter
         s_reconnect_attempts++;
 
@@ -415,3 +422,30 @@ void wifi_apply_power_save(void) {
   ESP_LOGI(TAG, "Setting WiFi Power Save Mode to %d...", power_save_mode);
   esp_wifi_set_ps((wifi_ps_type_t)power_save_mode);
 }
+
+esp_err_t wifi_connect_to(const char* ssid, const char* password) {
+  wifi_config_t sta_config = {0};
+  strlcpy((char*)sta_config.sta.ssid, ssid, sizeof(sta_config.sta.ssid));
+  strlcpy((char*)sta_config.sta.password, password ? password : "",
+          sizeof(sta_config.sta.password));
+  // Allow WPA/WPA2/WPA3 networks; open ones when no password was given.
+  sta_config.sta.threshold.authmode =
+      (password && *password) ? WIFI_AUTH_WPA_PSK : WIFI_AUTH_OPEN;
+
+  s_last_disconnect_reason = 0;
+  s_reconnect_attempts = 0;
+  s_connection_given_up = false;
+  xEventGroupClearBits(s_wifi_event_group,
+                       WIFI_CONNECTED_BIT | WIFI_CONNECTED_IPV6_BIT);
+
+  esp_wifi_disconnect();
+  esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &sta_config);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Setup: set STA config failed: %s", esp_err_to_name(err));
+    return err;
+  }
+  ESP_LOGI(TAG, "Setup: joining %s", ssid);
+  return esp_wifi_connect();
+}
+
+uint8_t wifi_last_disconnect_reason(void) { return s_last_disconnect_reason; }

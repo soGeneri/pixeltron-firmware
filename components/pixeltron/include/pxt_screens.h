@@ -17,6 +17,10 @@ extern "C" {
 #define PXT_FB_W 64
 #define PXT_FB_H 32
 
+// Largest setup QR code: version 3 is 29 modules, the most that fits the
+// 32-pixel-high panel with a light border.
+#define PXT_QR_MAX_VERSION 3
+
 typedef struct {
   uint8_t px[PXT_FB_H][PXT_FB_W][3];
 } pxt_fb_t;
@@ -50,9 +54,10 @@ typedef enum {
 
 void pxt_screen_status(pxt_fb_t* fb, pxt_status_t status);
 
-// Setup screen: QR code of `url` (upper case, <= 47 characters so it fits a
-// version 2 code in 32 rows) beside the code word, e.g. "FOX-42". Returns
-// false if the URL doesn't fit.
+// Setup screen: a QR code of `url` beside the code word, e.g. "FOX-42". `url`
+// is normally the Wi-Fi payload from pxt_wifi_qr(); anything up to a version
+// PXT_QR_MAX_VERSION code fits (53 bytes, or 77 upper-case characters such
+// as the setup URL). Returns false if it doesn't.
 bool pxt_screen_setup(pxt_fb_t* fb, const char* url, const char* code_word);
 
 void pxt_screen_updating(pxt_fb_t* fb, int percent);

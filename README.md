@@ -71,6 +71,29 @@ make tidbyt-gen2-patched
 
 If your panel looks fine with the regular targets, you don't need these.
 
+## Pixeltron (setup with the Pixels app)
+
+`make pixeltron-s3` (or `pixeltron-gen1`) builds with `CONFIG_PIXELTRON`, layering `sdkconfig.defaults.pixeltron` on a board. Without it the firmware behaves exactly as before.
+
+**Setup**
+- **Hotspot:** an unconfigured device opens `Pixeltron-<CODEWORD>` (e.g. `Pixeltron-FOX42`). It's WPA2, and the password is the device's 8-character setup code.
+- **Panel:** shows a `WIFI:` QR code for that hotspot next to the code word. The app scans it; a phone camera can join it too.
+- **Portal:** the setup portal answers at `192.168.4.1` with the JSON API the app uses: `/api/info`, `/api/scan`, `/api/connect`, `/api/status`, `/api/done`.
+- **Registration:** after joining your Wi-Fi, the device registers with the server (`CONFIG_PXT_SERVER_URL`, or the app's self-hosted server). It gets its key and websocket address, and reports a claim code to the app.
+- **Identifiers:** the code word, setup code and device id all come from the Wi-Fi MAC (`components/pixeltron/src/codeword.c`). The server and the app's simulator use the same algorithm and test vectors.
+
+**Knob**
+- **Turn:** a quadrature encoder on `CONFIG_PXT_ENCODER_A_PIN`/`_B_PIN` changes brightness.
+- **Button** (`CONFIG_BUTTON_PIN`): press for next, double press for previous, hold 2–3 s for back, hold 10 s to factory reset (the countdown starts at 3 s).
+- **Server messages:** each action is sent over the websocket (`components/pixeltron/include/pxt_proto.h`), and the server turns them into the app's live events.
+
+**Updates:** OTA progress, success and failure are reported to the app.
+
+**Released by its owner:**
+- **Detection:** when the server refuses the websocket, the device asks `/app/v0/device/claim` with its key. "Not claimed yet" means keep waiting. "Not linked" means it shows E4, forgets the server and goes back to setup.
+
+**Host tests:** `cd components/pixeltron/host && make test`.
+
 ## Monitoring Logs
 
 To check the output of your running firmware, run the following:

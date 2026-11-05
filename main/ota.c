@@ -16,6 +16,12 @@
 
 #include "display.h"
 #include "gfx.h"
+#if CONFIG_PIXELTRON
+#include "pixeltron.h"
+#define OTA_REPORT(pct, done, err) pxt_report_ota((pct), (done), (err))
+#else
+#define OTA_REPORT(pct, done, err) ((void)0)
+#endif
 
 static const char *TAG = "OTA";
 
@@ -298,6 +304,7 @@ void run_ota(const char *url) {
         }
         display_flip();
         last_progress_width = progress_width;
+        OTA_REPORT((int)((int64_t)cur_len * 100 / total_len), false, NULL);
       }
     }
 
@@ -323,6 +330,7 @@ void run_ota(const char *url) {
 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "OTA Update failed: %s", esp_err_to_name(err));
+    OTA_REPORT(-1, false, esp_err_to_name(err));
     esp_https_ota_finish(https_ota_handle);
     display_clear();
     display_text("OTA Fail", 2, 10, 255, 0, 0, 1);
@@ -333,6 +341,7 @@ void run_ota(const char *url) {
     err = esp_https_ota_finish(https_ota_handle);
     if (err == ESP_OK) {
       ESP_LOGI(TAG, "OTA Update successful. Rebooting...");
+      OTA_REPORT(100, true, NULL);
       display_clear();
       display_text("Rebooting", 2, 10, 0, 255, 0, 1);
       display_flip();
@@ -340,6 +349,7 @@ void run_ota(const char *url) {
       esp_restart();
     } else {
       ESP_LOGE(TAG, "OTA Finish failed: %s", esp_err_to_name(err));
+      OTA_REPORT(-1, false, esp_err_to_name(err));
       display_clear();
       display_text("OTA Fail", 2, 10, 255, 0, 0, 1);
       display_flip();

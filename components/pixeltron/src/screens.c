@@ -96,19 +96,21 @@ void pxt_screen_status(pxt_fb_t* fb, pxt_status_t status) {
 }
 
 bool pxt_screen_setup(pxt_fb_t* fb, const char* url, const char* code_word) {
-  uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];
-  uint8_t tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];
+  // Up to version 3 (29 modules): a WIFI: payload needs it, and with a
+  // 1-module light border that is still 31 pixels, inside the 32-pixel panel.
+  uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(PXT_QR_MAX_VERSION)];
+  uint8_t tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(PXT_QR_MAX_VERSION)];
   pxt_fb_clear(fb);
-  if (!qrcodegen_encodeText(url, tmp, qr, qrcodegen_Ecc_LOW, 1, 2,
-                            qrcodegen_Mask_AUTO, false)) {
+  if (!qrcodegen_encodeText(url, tmp, qr, qrcodegen_Ecc_LOW, 1,
+                            PXT_QR_MAX_VERSION, qrcodegen_Mask_AUTO, false)) {
     return false;
   }
-  int size = qrcodegen_getSize(qr);  // 21 (version 1) or 25 (version 2)
-  // The spec's 4-module quiet zone, trimmed to 3 when a version 2 code would
-  // otherwise overflow the 32 rows (25 + 2 * 3 = 31).
+  int size = qrcodegen_getSize(qr);  // 21, 25 or 29
+  // The spec's 4-module quiet zone, trimmed to fit the 32 rows: 4 for
+  // version 1 (29 px), 3 for version 2 (31 px), 1 for version 3 (31 px).
   int quiet = (PXT_FB_H - size) / 2;
   if (quiet > 4) quiet = 4;
-  int box = size + 2 * quiet;  // 29 or 31
+  int box = size + 2 * quiet;
   int ox = 1, oy = (PXT_FB_H - box) / 2;
   pxt_fb_fill(fb, ox, oy, box, box, kQrLight);
   for (int y = 0; y < size; y++) {

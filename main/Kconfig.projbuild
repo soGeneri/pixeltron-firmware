@@ -213,3 +213,48 @@ menu "Application Configuration"
             GPIO pin for the button.
 
 endmenu
+
+menu "Pixeltron"
+
+    config PIXELTRON
+        bool "Pixeltron setup and knob"
+        default n
+        help
+            Pixeltron behaviour for the Pixels app: a WPA2 setup hotspot named
+            Pixeltron-<CODEWORD> at 192.168.4.1 whose password is the setup
+            code, the setup portal's JSON API (/api/info, /api/scan,
+            /api/connect, /api/status, /api/done), registering with the
+            server for a claim code, the QR setup screen, knob input over
+            the websocket and firmware update progress. Off: the original
+            Tronbyt TRON-CONFIG portal, unchanged.
+
+    config PXT_SERVER_URL
+        string "Pixeltron server"
+        depends on PIXELTRON
+        default "https://pixeltron.cloud"
+        help
+            Server the device registers with during setup, unless the app
+            sends its own (self-hosted). The app API is at <this>/app/v0.
+
+    config PXT_ENCODER_A_PIN
+        int "Knob encoder A pin"
+        depends on PIXELTRON
+        default -1
+        help
+            Rotary encoder channel A. -1: no encoder (the button still works).
+            The knob's push button is BUTTON_PIN.
+
+    config PXT_ENCODER_B_PIN
+        int "Knob encoder B pin"
+        depends on PIXELTRON
+        default -1
+
+    config PXT_ENCODER_COUNTS_PER_DETENT
+        int "Encoder counts per detent"
+        depends on PIXELTRON
+        default 4
+        help
+            Quadrature counts between two clicks of the knob (4 for most
+            mechanical encoders).
+
+endmenu
